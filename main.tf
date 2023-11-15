@@ -18,11 +18,27 @@ data "aws_vpc" "default" {
   default = true
 }
 
-resource "aws_instance" "web" {
-  ami           = data.aws_ami.app_ami.id
-  instance_type = var.instance_type
+module "web_vpc" {
+  source = "terraform-aws-modules/vpc/aws"
 
+  name = "dev_tf"
+  cidr = "10.0.0.0/16"
+
+  azs             = ["eu-west-1a", "eu-west-1b", "eu-west-1c"]
+  public_subnets  = ["10.0.101.0/24", "10.0.102.0/24", "10.0.103.0/24"]
+
+  tags = {
+    Terraform = "true"
+    Environment = "dev"
+  }
+}
+
+resource "aws_instance" "web" {
+  ami                    = data.aws_ami.app_ami.id
+  instance_type          = var.instance_type
   vpc_security_group_ids = [module.web_sg.security_group_id]
+
+  subnet_id = module.web.vpc.public_subnets[0]
 
   tags = {
     Name = "HelloWorld"
@@ -33,7 +49,7 @@ module "web_sg" {
   source  = "terraform-aws-modules/security-group/aws"
   version = "4.13.0"
 
-  vpc_id  = data.aws_vpc.default.id
+  vpc_id  = module.web_vpc.vpc_id
   name    = "web"
   ingress_rules = ["https-443-tcp","http-80-tcp"]
   ingress_cidr_blocks = ["0.0.0.0/0"]
